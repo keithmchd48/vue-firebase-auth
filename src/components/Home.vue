@@ -1,25 +1,25 @@
 <template>
     <div>
         <!-- NAVBAR -->
-        <nav class="z-depth-0 grey lighten-4">
+        <nav class="z-depth-0 grey lighten-4" v-if="!loader">
             <div class="nav-wrapper container">
                 <a href="#" class="brand-logo">
                     <img src="../assets/images/logo.svg" style="width: 180px; margin-top: 10px;">
                 </a>
                 <ul id="nav-mobile" class="right hide-on-med-and-down">
-                    <li class="logged-in">
+                    <li class="logged-in" v-if="isUserLoggedIn">
                         <a href="#" class="grey-text modal-trigger" data-target="modal-account">Account</a>
                     </li>
-                    <li class="logged-in" @click="logout">
+                    <li class="logged-in" v-if="isUserLoggedIn" @click="logout">
                         <a href="#" class="grey-text" id="logout">Logout</a>
                     </li>
-                    <li class="logged-in">
-                        <a href="#" class="grey-text modal-trigger" data-target="modal-create">Create Guide</a>
+                    <li class="logged-in" v-if="isUserLoggedIn">
+                        <a href="#" class="grey-text modal-trigger" data-target="modal-create">Create Book</a>
                     </li>
-                    <li class="logged-out">
+                    <li class="logged-out" v-if="!isUserLoggedIn">
                         <a href="#" class="grey-text modal-trigger" data-target="modal-login">Login</a>
                     </li>
-                    <li class="logged-out">
+                    <li class="logged-out" v-if="!isUserLoggedIn">
                         <a href="#" class="grey-text modal-trigger" data-target="modal-signup">Sign up</a>
                     </li>
                 </ul>
@@ -71,30 +71,32 @@
         <div id="modal-account" class="modal">
             <div class="modal-content center-align">
                 <h4>Account details</h4><br />
-                <div class="account-details"></div>
+                <div class="account-details">
+                    {{userInfo && userInfo.email ? 'Logged In As ' + userInfo.email : ''}}
+                </div>
             </div>
         </div>
-        <!-- CREATE GUIDE MODAL -->
+        <!-- CREATE BOOK MODAL -->
         <div id="modal-create" class="modal">
             <div class="modal-content">
-                <h4>Create Guide</h4><br />
-                <form id="create-form">
+                <h4>Create Book</h4><br />
+                <div id="create-form">
                     <div class="input-field">
-                        <input type="text" id="title" required>
-                        <label for="title">Guide Title</label>
+                        <input type="text" id="title" v-model="book.bookTitle">
+                        <label for="title">Book Title</label>
                     </div>
                     <div class="input-field">
-                        <textarea id="content" class="materialize-textarea" required></textarea>
-                        <label for="content">Guide Content</label>
+                        <textarea id="content" class="materialize-textarea" v-model="book.bookAuthor"></textarea>
+                        <label for="content">Book Author</label>
                     </div>
-                    <button class="btn yellow darken-2 z-depth-0">Create</button>
-                </form>
+                    <button @click="addBook" class="btn yellow darken-2 z-depth-0">Create</button>
+                </div>
             </div>
         </div>
         <!-- GUIDE LIST -->
         <div class="container" style="margin-top: 40px;">
             <h5 class="center-align"
-                v-if="!isUserLoggedIn"
+                v-if="!isUserLoggedIn && !loader"
             >Login to view Books
             </h5>
             <ul v-else="" class="collapsible z-depth-0 guides" style="border: none;">
@@ -124,7 +126,9 @@
         name: 'home',
         data () {
             return {
+                loader: true,
                 books: [],
+                userInfo: {},
                 isUserLoggedIn: false,
                 sign_up: {
                     email: '',
@@ -133,21 +137,42 @@
                 login: {
                     email: '',
                     password: ''
+                },
+                book: {
+                    bookTitle: '',
+                    bookAuthor: ''
                 }
             }
         },
         created () {
             auth.onAuthStateChanged(user => {
                 if (user) {
+                    this.userInfo = user
                     this.isUserLoggedIn = true;
                     this.getBooks();
                 } else {
                     this.books = [];
                     this.isUserLoggedIn = false
                 }
+                this.loader = false
             });
         },
         methods: {
+            addBook () {
+                if (this.book.bookTitle && this.book.bookAuthor) {
+                    db.collection('books_tbl').add({
+                        title: this.book.bookTitle,
+                        author: this.book.bookAuthor
+                    }).then(resp => {
+                        this.book.bookTitle = '';
+                        this.book.bookAuthor = '';
+                        this.closeModal('#modal-create');
+                        this.getBooks();
+                    }).catch(err => {
+                        alert(err.message)
+                    })
+                }
+            },
             getBooks () {
                 let items = [];
                 db.collection('books_tbl').get()
