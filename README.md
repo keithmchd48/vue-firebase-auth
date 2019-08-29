@@ -16,6 +16,7 @@ npm run build
 ```
 
 Netlify Hosting: https://naughty-liskov-467878.netlify.com
+
 Firebase Hosting: https://vue-firebase-auth-b2c28.firebaseapp.com
 
 ### Customize configuration
