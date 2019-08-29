@@ -13,7 +13,7 @@
                     <li class="logged-in" v-if="isUserLoggedIn" @click="logout">
                         <a href="#" class="grey-text" id="logout">Logout</a>
                     </li>
-                    <li class="logged-in" v-if="isUserLoggedIn">
+                    <li class="logged-in" v-if="isUserLoggedIn && userInfo.isAdmin">
                         <a href="#" class="grey-text modal-trigger" data-target="modal-create">Create Book</a>
                     </li>
                     <li class="logged-out" v-if="!isUserLoggedIn">
@@ -25,6 +25,13 @@
                 </ul>
             </div>
         </nav>
+        <!-- ADMIN ACTIONS -->
+        <div v-if="isUserLoggedIn && userInfo.isAdmin" class="center-align admin-actions" style="margin: 40px auto; max-width: 300px;">
+            <input type="email" placeholder="User email" id="admin-email"
+                   v-model="admin.email"
+            />
+            <button @click="addAdminRole" class="btn-small yellow darken-2 z-depth-0">Make admin</button>
+        </div>
         <!-- SIGN UP MODAL -->
         <div id="modal-signup" class="modal">
             <div class="modal-content">
@@ -42,7 +49,14 @@
                         />
                         <label for="signup-password">Choose password</label>
                     </div>
+                    <div class="input-field">
+                        <input type="text" id="signup-bio"
+                               v-model="sign_up.bio"
+                        />
+                        <label for="signup-bio">One Line Bio</label>
+                    </div>
                     <button @click="submitSignUp()" class="btn yellow darken-2 z-depth-0">Sign up</button>
+                    <p v-if="errorMsg" class="error pink-text center-align">{{errorMsg}}</p>
                 </div>
             </div>
         </div>
@@ -64,6 +78,7 @@
                         <label for="login-password">Your password</label>
                     </div>
                     <button @click="loginFunction" class="btn yellow darken-2 z-depth-0">Login</button>
+                    <p v-if="errorMsg" class="error pink-text center-align">{{errorMsg}}</p>
                 </div>
             </div>
         </div>
@@ -72,7 +87,9 @@
             <div class="modal-content center-align">
                 <h4>Account details</h4><br />
                 <div class="account-details">
-                    {{userInfo && userInfo.email ? 'Logged In As ' + userInfo.email : ''}}
+                    <div>{{userInfo.email ? 'Logged In As ' + userInfo.email : ''}}</div>
+                    <div>{{userInfo.bio ? userInfo.bio : ''}}</div>
+                    <div>{{userInfo.isAdmin ? 'Admin' : ''}}</div>
                 </div>
             </div>
         </div>
@@ -122,17 +139,24 @@
     });
     import {auth} from '../main'
     import {db} from '../main'
+    import {func} from '../main'
     export default {
         name: 'home',
         data () {
             return {
                 loader: true,
+                errorMsg: '',
                 books: [],
-                userInfo: {},
+                userInfo: {
+                    email: '',
+                    bio: '',
+                    isAdmin: false
+                },
                 isUserLoggedIn: false,
                 sign_up: {
                     email: '',
-                    password: ''
+                    password: '',
+                    bio: ''
                 },
                 login: {
                     email: '',
@@ -141,13 +165,22 @@
                 book: {
                     bookTitle: '',
                     bookAuthor: ''
+                },
+                admin: {
+                    email: ''
                 }
             }
         },
         created () {
             auth.onAuthStateChanged(user => {
                 if (user) {
-                    this.userInfo = user
+                    user.getIdTokenResult().then(idTokenRes => {
+                        this.userInfo.isAdmin = idTokenRes.claims.admin
+                    });
+                    db.collection('users').doc(user.uid).get().then(doc => {
+                        this.userInfo.bio = doc.data().bio
+                    });
+                    this.userInfo.email = user.email;
                     this.isUserLoggedIn = true;
                     this.getBooks();
                 } else {
@@ -158,6 +191,13 @@
             });
         },
         methods: {
+            addAdminRole () {
+                const addAdminRole = func.httpsCallable('addAdminRole');
+                addAdminRole({email: this.admin.email})
+                    .then(res => {
+                        alert(`${res.data.message}`);
+                    })
+            },
             addBook () {
                 if (this.book.bookTitle && this.book.bookAuthor) {
                     db.collection('books_tbl').add({
@@ -192,14 +232,25 @@
                 M.Modal.getInstance(modal).close();
             },
             submitSignUp () {
-                if (this.sign_up.email && this.sign_up.password) {
+                if (this.sign_up.email && this.sign_up.password && this.sign_up.bio) {
                     // sign up the user
                     auth.createUserWithEmailAndPassword(this.sign_up.email, this.sign_up.password)
                         .then(cred => {
-                            this.sign_up.email = '';
-                            this.sign_up.password = '';
-                            this.closeModal('#modal-signup')
-                        });
+                            return db.collection('users').doc(cred.user.uid).set({
+                                bio: this.sign_up.bio
+                            });
+                        }).then(() => {
+                        this.sign_up.email = '';
+                        this.sign_up.password = '';
+                        this.sign_up.bio = '';
+                        this.errorMsg = '';
+                        this.closeModal('#modal-signup')
+                    }).catch(err => {
+                        this.errorMsg = err;
+                        setTimeout(() => {
+                            this.errorMsg = ''
+                        }, 5000)
+                    });
                 }
             },
             logout () {
@@ -217,7 +268,12 @@
                             this.login.email = '';
                             this.login.password = '';
                             this.closeModal('#modal-login')
-                        })
+                        }).catch(err => {
+                        this.errorMsg = err;
+                        setTimeout(() => {
+                            this.errorMsg = ''
+                        }, 5000)
+                    });
                 }
             }
         }
