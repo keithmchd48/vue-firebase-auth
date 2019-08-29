@@ -4,6 +4,7 @@ import router from './router/index'
 import * as firebase from 'firebase/app';
 import 'firebase/auth'
 import 'firebase/firestore'
+import 'firebase/functions'
 
 Vue.config.productionTip = false;
 
@@ -21,6 +22,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 export const db = firebase.firestore();
 export const auth = firebase.auth();
+export const func = firebase.functions();
 // update firestore settings
 // db.settings({ timestampsInSnapshots: true });
 new Vue({
